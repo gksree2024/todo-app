@@ -1,31 +1,59 @@
 const taskInput = document.getElementById("taskInput");
+const dueDateInput = document.getElementById("dueDateInput");
 const addBtn = document.getElementById("addBtn");
 const taskList = document.getElementById("taskList");
 const remainingCount = document.getElementById("remainingCount");
+const completedCount = document.getElementById("completedCount");
 const clearCompletedBtn = document.getElementById("clearCompleted");
 const filterButtons = document.querySelectorAll(".filter-btn");
 const emptyMessage = document.getElementById("emptyMessage");
+const themeToggle = document.getElementById("themeToggle");
 
 let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
 let currentFilter = "all";
+let theme = localStorage.getItem("theme") || "dark";
 
 function saveTasks() {
   localStorage.setItem("tasks", JSON.stringify(tasks));
 }
 
+function saveTheme() {
+  localStorage.setItem("theme", theme);
+  document.body.classList.toggle("light-theme", theme === "light");
+  themeToggle.textContent = theme === "light" ? "Dark mode" : "Light mode";
+}
+
+function formatDate(dateString) {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function isOverdue(dateString) {
+  if (!dateString) return false;
+  const due = new Date(dateString);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return due < today;
+}
+
 function getFilteredTasks() {
-  if (currentFilter === "active") {
-    return tasks.filter((task) => !task.completed);
-  }
-  if (currentFilter === "completed") {
-    return tasks.filter((task) => task.completed);
-  }
-  return tasks;
+  return tasks
+    .map((task, index) => ({ ...task, index }))
+    .filter((task) => {
+      if (currentFilter === "active") return !task.completed;
+      if (currentFilter === "completed") return task.completed;
+      return true;
+    });
 }
 
 function updateTaskCount() {
   const activeCount = tasks.filter((task) => !task.completed).length;
+  const completedCountValue = tasks.filter((task) => task.completed).length;
   remainingCount.textContent = activeCount;
+  completedCount.textContent = completedCountValue;
 }
 
 function renderTasks() {
@@ -39,19 +67,23 @@ function renderTasks() {
   }
 
   visibleTasks.forEach((task) => {
-    const index = tasks.indexOf(task);
     const li = document.createElement("li");
-
     if (task.completed) {
       li.classList.add("completed");
     }
 
+    const dueText = task.dueDate ? formatDate(task.dueDate) : "";
+    const overdueClass = task.dueDate && isOverdue(task.dueDate) && !task.completed ? "overdue" : "";
+
     li.innerHTML = `
-      <span>${task.text}</span>
+      <div class="task-body">
+        <span class="task-title">${task.text}</span>
+        ${dueText ? `<span class="due-date ${overdueClass}">Due ${dueText}</span>` : ""}
+      </div>
       <div class="actions">
-        <button onclick="toggleTask(${index})" title="Toggle complete">✔</button>
-        <button onclick="editTask(${index})" title="Edit task">✎</button>
-        <button onclick="deleteTask(${index})" title="Delete task">❌</button>
+        <button onclick="toggleTask(${task.index})" title="Toggle complete">✔</button>
+        <button onclick="editTask(${task.index})" title="Edit task">✎</button>
+        <button onclick="deleteTask(${task.index})" title="Delete task">❌</button>
       </div>
     `;
 
@@ -63,15 +95,18 @@ function renderTasks() {
 
 function addTask() {
   const text = taskInput.value.trim();
+  const dueDate = dueDateInput.value;
 
   if (text === "") return;
 
   tasks.push({
     text: text,
     completed: false,
+    dueDate: dueDate || "",
   });
 
   taskInput.value = "";
+  dueDateInput.value = "";
   saveTasks();
   renderTasks();
 }
@@ -95,7 +130,11 @@ function editTask(index) {
   const trimmedText = newText.trim();
   if (trimmedText === "") return;
 
+  const newDueDate = prompt("Edit due date (YYYY-MM-DD), or leave blank to remove", tasks[index].dueDate || "");
+  if (newDueDate === null) return;
+
   tasks[index].text = trimmedText;
+  tasks[index].dueDate = newDueDate.trim();
   saveTasks();
   renderTasks();
 }
@@ -113,6 +152,11 @@ function updateFilter(event) {
   renderTasks();
 }
 
+function toggleTheme() {
+  theme = theme === "dark" ? "light" : "dark";
+  saveTheme();
+}
+
 addBtn.addEventListener("click", addTask);
 clearCompletedBtn.addEventListener("click", clearCompletedTasks);
 filterButtons.forEach((button) => button.addEventListener("click", updateFilter));
@@ -123,4 +167,7 @@ taskInput.addEventListener("keydown", (event) => {
   }
 });
 
+themeToggle.addEventListener("click", toggleTheme);
+
+saveTheme();
 renderTasks();
